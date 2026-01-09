@@ -1,0 +1,23 @@
+{
+	"topLeftText": "L:/VVS_PIPELINE/vvs-dcc-plugins/nuke/images/default/vvs_logo_500.tga",
+	"topCenterText": "python(\"os.path.basename(cmds.file(sn=1,q=1)).rsplit('_',1)[0]\")|{counter}/{end_time}",
+	"topRightText":"{scene}",
+	"bottomLeftText":"",
+	"bottomCenterText":"",
+	"bottomRightText":"",
+	"topLeftCenterText":"",
+	"topRightCenterText":"",
+	"bottomLeftCenterText":"",
+	"bottomRightCenterText":"",
+	"fontName":"Courier",
+	"fontScale": 0.6,
+	"imageScale":0.5,
+	"fontAlpha":1.0,
+	"aspectRatioBorders":1,
+	"borderAspectRatio": 2.39,
+	"counterPadding": 4,
+	"borderAlpha":1.0,
+	"DEFAULT_CONTAINER": "mov"
+
+}
+	

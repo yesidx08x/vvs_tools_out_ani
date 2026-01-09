@@ -1,0 +1,38 @@
+{
+	"topLeftText": "L:/VVS_PIPELINE/vvs-dcc-plugins/nuke/images/default/vvs_logo_500.tga",
+	"topCenterText": "LGS",
+	"topRightText":"python(\"from datetime import datetime;today = datetime.today();today.strftime('%m/%d/%y')\")",
+	"bottomLeftText":"Focal Length {focal_length}",
+	"bottomCenterText":"python(\"os.path.basename(cmds.file(sn=1,q=1)).rsplit('.',1)[0]\")",
+	"bottomRightText":"{time_code}  {counter}/{start_time}-{end_time}",
+	"topLeftCenterText":"",
+	"topRightCenterText":"",
+	"bottomLeftCenterText":"",
+	"bottomRightCenterText":"",
+	"fontName":"Courier",
+	"fontScale": 0.6,
+	"imageScale":0.5,
+	"fontAlpha":1.0,
+	"aspectRatioBorders":1,
+	"borderAspectRatio": 2.39,
+	"counterPadding": 4,
+	"borderAlpha":1.0,
+	"DEFAULT_CONTAINER": "mov",
+	"backGround": {
+		"imagePath": "L:/VVS_PIPELINE/pipeline/in_house/maya/scripts/core/ani/play_blast/background/xhrm.png",
+		"firstFrame": 987,
+		"title": "LGS",
+		"titleSize": 100,
+		"textSize": 36,
+		"space": 60,
+		"xPos": 120,
+		"yPos": 210,
+		"xPosThumb": 1220,
+		"yPosThumb": 210,
+		"date": "Date:|python(\"from datetime import datetime;today = datetime.today();today.strftime('%m/%d/%y')\")",
+		"frame": "Fame:|python(\"start_time=int(cmds.playbackOptions(q=True, min=True));end_time = int(cmds.playbackOptions(q=True, max=True));str(start_time)+'-'+str(end_time)\")",
+		"shotName": "Shot Name:|python(\"os.path.basename(cmds.file(sn=1,q=1)).rsplit('.',1)[0]\")"
+	}
+
+}
+	

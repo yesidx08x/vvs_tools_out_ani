@@ -1,0 +1,163 @@
+from pathlib import Path
+from win32com.client import Dispatch
+import winreg
+
+from stage.apps.app_core import AppCore
+from stage.apps.photoshop import validate
+from stage.apps.photoshop import extract
+from stage.apps.photoshop import ingest
+from stage.apps.photoshop import extension
+
+
+class Dcc(AppCore):
+
+    name = "photoshop"
+    formats = [".psd", ".psb"]
+    preview_enabled = False
+    validations = validate.classes
+    extracts = extract.classes
+    ingests = ingest.classes
+    extensions = extension.classes
+
+    def __init__(self):
+        super().__init__()
+
+        self.com_link = Dispatch("Photoshop.Application")
+        # self.com_link = self.get_dispatch("Photoshop.Application")
+
+    def get_dispatch(self, key_prefix="Photoshop.Application"):
+        """Get the Photoshop dispatch object."""
+        # first try only the prefix
+        try:
+            com_link = Dispatch(key_prefix)
+            return com_link
+        except: # pylint: disable=bare-except
+            pass
+
+        keys = self.get_photoshop_registry_keys(prefix=key_prefix)
+
+        for key in keys:
+            try:
+                com_link = Dispatch(key)
+                return com_link
+            except: # pylint: disable=bare-except
+                pass
+
+    @staticmethod
+    def get_photoshop_registry_keys(prefix):
+        # prefix = "Photoshop.Application"
+        keys = []
+        hive = winreg.HKEY_CLASSES_ROOT
+        subkey = ""
+
+        try:
+            with winreg.OpenKey(hive, subkey) as key:
+                idx = 0
+                while True:
+                    subkey_name = winreg.EnumKey(key, idx)
+                    if subkey_name.startswith(prefix):
+                        keys.append(subkey_name)
+                    idx += 1
+        except FileNotFoundError:
+            pass  # Handle the case where the registry key doesn't exist
+        except Exception as e:
+            pass
+        return keys
+
+    def save_as(self, file_path):
+        """Save the current scene as a new file.
+
+        Args:
+            file_path (str): Path to the file to save.
+        """
+        # get the format from the file path
+        format = Path(file_path).suffix
+        if format not in Dcc.formats:
+            raise ValueError(f"Unsupported file format: {format}")
+
+        if format == ".psd":
+            active_doc = self.com_link.Application.ActiveDocument
+            save_options = Dispatch("Photoshop.PhotoshopSaveOptions")
+            active_doc.SaveAs(file_path, save_options, False) # False means its not saving as a copy.
+
+        elif format == ".psb":
+            desc19 = Dispatch("Photoshop.ActionDescriptor")
+            desc20 = Dispatch("Photoshop.ActionDescriptor")
+            desc20.PutBoolean(self.com_link.StringIDToTypeID('maximizeCompatibility'), True)
+            desc19.PutObject(
+                self.com_link.CharIDToTypeID('As  '), self.com_link.CharIDToTypeID('Pht8'), desc20)
+            desc19.PutPath(self.com_link.CharIDToTypeID('In  '), file_path)
+            desc19.PutBoolean(self.com_link.CharIDToTypeID('LwCs'), True)
+            self.com_link.ExecuteAction(self.com_link.CharIDToTypeID('save'), desc19, 3)
+
+        return file_path
+
+    def open(self, file_path, force=True, **extra_arguments):
+        """Load the given file.
+
+        Args:
+            file_path (str): Path to the file to load.
+        """
+        self.com_link.Open(file_path)
+
+    def get_scene_file(self):
+        """Get the current scene file.
+
+        Returns:
+            str: Path to the current scene file.
+        """
+        try:
+            active_document = self.com_link.Application.ActiveDocument
+            doc_name = active_document.name
+            doc_path = active_document.path
+            return str(Path(doc_path, doc_name))
+        except: # pylint: disable=bare-except
+            return ""
+
+    def generate_thumbnail(self, file_path, width, height):
+        """Generate a thumbnail for the given file."""
+        self.com_link.Preferences.RulerUnits = 1
+        active_document = self.com_link.Application.ActiveDocument
+        duplicate_document = active_document.Duplicate("thumbnail_copy", True)
+        duplicate_document.bitsPerChannel = 8
+        ratio = float(duplicate_document.Width) / float(duplicate_document.Height)
+
+        if ratio <= (float(width) / float(height)):
+            new_width = height * ratio
+            new_height = height
+        else:
+            new_width = width
+            new_height = width / ratio
+
+        duplicate_document.ResizeImage(new_width, new_height)
+        duplicate_document.ResizeCanvas(width, height)
+
+        # save the thumbnail
+        save_options = Dispatch("Photoshop.JPEGSaveOptions")
+        save_options.EmbedColorProfile = True
+        save_options.FormatOptions = 1  # => psStandardBaseline
+        save_options.Matte = 1  # => No Matte
+        save_options.Quality = 6
+        active_document.SaveAs(file_path, save_options, True)
+        duplicate_document.Close(2) # 2 means without saving...
+        return file_path
+
+    def generate_thumbnail_full(self, file_path):
+        """Generate a thumbnail for the given file."""
+        self.com_link.Preferences.RulerUnits = 1
+        active_document = self.com_link.Application.ActiveDocument
+        duplicate_document = active_document.Duplicate("thumbnail_copy", True)
+        duplicate_document.bitsPerChannel = 8
+
+        # save the thumbnail
+        save_options = Dispatch("Photoshop.JPEGSaveOptions")
+        save_options.EmbedColorProfile = True
+        save_options.FormatOptions = 1  # => psStandardBaseline
+        save_options.Matte = 1  # => No Matte
+        save_options.Quality = 6
+        active_document.SaveAs(file_path, save_options, True)
+        duplicate_document.Close(2) # 2 means without saving...
+        return file_path
+    def get_dcc_version(self):
+        """Get the version of the DCC."""
+        return str(self.com_link.Version)

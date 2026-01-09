@@ -1,0 +1,1237 @@
+global proc string asDoPadd (int $frameNr,int $padding)
+{
+string $frameName;
+string $padd="";
+string $neg="";
+string $frameNrAsString=$frameNr;
+for ($i=0;$i<$padding;$i++)
+	$padd=$padd+"0";
+//move the negative symbol to start of string//
+if ($frameNr<0)
+	$neg="-";
+int $nr=`size ($frameNrAsString)`;
+if ($padding>$nr)
+	$frameName=$neg+`substring $padd ($nr+1) 999`+abs($frameNr);
+else
+	$frameName=$frameNr;
+return $frameName;
+}
+
+
+
+global proc asSetMoCapWSOrient (float $x, float $y, float $z, string $transform, string $nameSpace)
+{
+string $tempString[];
+
+if (!`objExists $transform`)
+	return;
+if (`objExists tempXform`) delete tempXform;
+createNode -n tempXform transform;
+orientConstraint $transform tempXform;
+asSetOrientOffsetFromAxis tempXform_orientConstraint1 $transform ($nameSpace+"Main");
+delete tempXform_orientConstraint1;
+$tempString=`orientConstraint -mo tempXform $transform`;
+xform -ws -ro $x $y $z tempXform;
+delete $tempString[0];
+delete tempXform;
+}
+global proc asSetOrientOffsetFromAxis (string $constraint, string $joint, string $FitSkeletonOrMain)
+{
+float $NegPriYAdd,$NegSecXAdd,$NegSecXAdd;
+float $NegPriMult=1;
+string $priAxis=`asGetAxis primary   $joint $FitSkeletonOrMain 0`;
+string $secAxis=`asGetAxis secondary $joint $FitSkeletonOrMain 0`;
+string $attr="offset";
+
+if (`objectType $constraint`=="parentConstraint")
+	$attr="target[0].targetOffsetRotate";
+
+if (`gmatch $priAxis "-*"`) {$NegPriMult=-1;$NegPriYAdd=180;}
+if (`gmatch $secAxis "-*"`) $NegSecXAdd=180;//re-added
+
+if (`gmatch $priAxis "*X"` && `gmatch $secAxis "*Y"`) setAttr -type float3 ($constraint+"."+$attr) $NegSecXAdd $NegPriYAdd   0;
+if (`gmatch $priAxis "*X"` && `gmatch $secAxis "*Z"`) setAttr -type float3 ($constraint+"."+$attr)  ($NegSecXAdd+(90*$NegPriMult)) $NegPriYAdd   0;
+if (`gmatch $priAxis "*Y"` && `gmatch $secAxis "*Z"`) setAttr -type float3 ($constraint+"."+$attr)  ($NegSecXAdd+(90*$NegPriMult)) $NegPriYAdd  90;
+if (`gmatch $priAxis "*Y"` && `gmatch $secAxis "*X"`) setAttr -type float3 ($constraint+"."+$attr) ($NegSecXAdd+(180*$NegPriMult)) $NegPriYAdd  90;
+if (`gmatch $priAxis "*Z"` && `gmatch $secAxis "*X"`) setAttr -type float3 ($constraint+"."+$attr) ($NegSecXAdd+(-90*$NegPriMult)) ($NegPriYAdd-90)   0;
+if (`gmatch $priAxis "*Z"` && `gmatch $secAxis "*Y"`) setAttr -type float3 ($constraint+"."+$attr) $NegSecXAdd ($NegPriYAdd-90)   0;
+}
+
+global proc string asGetAxis (string $priSecTer, string $fitJoint, string $FitSkeletonOrMain, int $abs)
+{
+int $worldmatch;
+string $axis;
+string $priAxis="X";
+string $secAxis="Y";
+string $terAxis="Z";
+
+if (!`objExists $FitSkeletonOrMain`)
+	error ("Object \""+$FitSkeletonOrMain+"\" does not exist");
+
+if (`attributeExists worldmatch FitSkeleton`)
+	$worldmatch=`getAttr FitSkeleton.worldmatch`;
+
+if (`objExists $FitSkeletonOrMain`)
+	if (`attributeExists primaryAxis $FitSkeletonOrMain`)
+		{
+		$priAxis=`getAttr -asString ($FitSkeletonOrMain+".primaryAxis")`;
+		$secAxis=`getAttr -asString ($FitSkeletonOrMain+".secondaryAxis")`;
+		}
+
+if ($worldmatch)
+	if (`objExists $fitJoint`)
+		if (`attributeExists primaryAxis $fitJoint`)
+			{
+			$priAxis=`getAttr -asString ($fitJoint+".primaryAxis")`;
+			$secAxis=`getAttr -asString ($fitJoint+".secondaryAxis")`;
+			}
+
+if ($priSecTer=="primary")   $axis=$priAxis;
+if ($priSecTer=="secondary") $axis=$secAxis;
+if ($priSecTer=="tertiary")  $axis=`asGetTerAxis $priAxis $secAxis`;
+
+if ($abs)
+	$axis=`asAbsAxis $axis`;
+
+return $axis;
+}
+
+
+global proc asMCLConnectBody (string $uiName)
+{
+int $numConnected,$altSkeletonType;
+float $currentTime=`currentTime -q`;
+float $distA,$distB;
+float $posA[],$posB[],$posC[];
+string $side,$rightLeft,$rightLeftSuffix,$topNode,$asFKFinger,$moCapFingerJoint,$hip,$knee,$ankle;
+string $moCapNs="MotionCaptureLibrary:";
+string $nameSpace=`getNameSpaceFromtUIName $uiName`;
+
+print("----"+$nameSpace+"------;\n");
+
+
+string $tempString[],$constraintObjs[],$constraintToObjs[],$cn[];
+string $fingers[]={"Thumb","Index","Middle","Ring","Pinky"};
+
+if (`attributeExists altSkeletonType MotionCaptureLibraryScale`)
+	$altSkeletonType=`getAttr MotionCaptureLibraryScale.altSkeletonType`;
+
+print("//skeleton type:"+$altSkeletonType+";\n");
+
+if ($currentTime!=-1)
+	if (`confirmDialog -t "Confirm"
+	-m ("Connecting when Not at Frame -1, could lead to unwanted offset.\n"
+		+"It is recommended to connect at Frame -1.\n")
+	-b "Proceed Anyway" -b "Cancel" -db "Cancel"
+	-ds "Cancel"`!="Proceed Anyway")
+		return;
+
+$constraintObjs={"RootX_M","FKRoot_M","FKSpine1_M","FKChest_M","FKNeck_M","FKHead_M"};
+$constraintToObjs={"Hips","Spine","Spine1","Spine3","Neck","Head"};
+
+if ($altSkeletonType==1)
+	$constraintToObjs={"pelvis","spine_01","spine_03","spine_05","neck_01","head"};
+
+if ($altSkeletonType==2)
+	$constraintToObjs={"Root_M","Spine1_M","Spine2_M","Chest_M","Neck_M","Head_M"};
+
+$tempString=`listRelatives -c MotionCaptureLibraryScale`;
+$topNode=$tempString[0];
+tokenize $topNode ":" $tempString;
+$moCapNs=$tempString[0]+":";
+
+//create poleVec PlaceHolder
+for ($b=1;$b>-2;$b=$b-2)
+	{
+	if ($b==1)  {$side="_R";$rightLeft="Right";$rightLeftSuffix="_r";}
+	if ($b==-1) {$side="_L";$rightLeft="Left";$rightLeftSuffix="_l";}
+
+	if ($altSkeletonType==0)
+		{
+		if (`objExists ($moCapNs+$rightLeft+"UpLeg")`) $hip=$moCapNs+$rightLeft+"UpLeg";
+		if (`objExists ($moCapNs+$rightLeft+"Leg")`) $knee=$moCapNs+$rightLeft+"Leg";
+		if (`objExists ($moCapNs+$rightLeft+"Foot")`) $ankle=$moCapNs+$rightLeft+"Foot";
+		}
+	if ($altSkeletonType==1)
+		{
+		if (`objExists ($moCapNs+"thigh"+$rightLeftSuffix)`) $hip="thigh"+$rightLeftSuffix;
+		if (`objExists ($moCapNs+"calf"+$rightLeftSuffix)`) $knee="calf"+$rightLeftSuffix;
+		if (`objExists ($moCapNs+"foot"+$rightLeftSuffix)`) $ankle="foot"+$rightLeftSuffix;
+		}
+
+	if ($altSkeletonType==2)
+		{
+			if ($b==1)  {$side="_R";$rightLeft="Right";$rightLeftSuffix="_R";}
+			if ($b==-1) {$side="_L";$rightLeft="Left";$rightLeftSuffix="_L";}
+
+		if (`objExists ($moCapNs+"Hip"+$rightLeftSuffix)`) $hip="Hip"+$rightLeftSuffix;
+		if (`objExists ($moCapNs+"Knee"+$rightLeftSuffix)`) $knee="Knee"+$rightLeftSuffix;
+		if (`objExists ($moCapNs+"Ankle"+$rightLeftSuffix)`) $ankle="Ankle"+$rightLeftSuffix;
+		}
+
+	if (`objExists $hip` && `objExists $ankle`)
+		{
+		namespace -set $moCapNs;
+		if (!`objExists PoleVectorLocators`)
+			createNode -n PoleVectorLocators -p MotionCaptureLibraryScale transform;
+		createNode -n ("PoleVectorLocatorOffset"+$side) -p ($moCapNs+"PoleVectorLocators") transform;
+		createNode -n ("PoleVectorLocator"+$side) -p ($moCapNs+"PoleVectorLocatorOffset"+$side) transform;
+		namespace -set ":";
+
+		$posA=`xform -q -ws -t $hip`;
+		$posB=`xform -q -ws -t $knee`;
+		$posC=`xform -q -ws -t $ankle`;
+		$distA=`mag<<$posA[0]-$posB[0],$posA[1]-$posB[1],$posA[2]-$posB[2]>>`;
+		$distB=`mag<<$posB[0]-$posC[0],$posB[1]-$posC[1],$posB[2]-$posC[2]>>`;
+
+		pointConstraint -w $distB $hip ($moCapNs+"PoleVectorLocatorOffset"+$side);
+		pointConstraint -w $distA $ankle ($moCapNs+"PoleVectorLocatorOffset"+$side);
+		//avoid flippped knee when straight leg
+		setAttr ("PoleVectorLocatorOffset"+$side+"_pointConstraint1.offsetZ") -0.1;
+
+		aimConstraint -aimVector 1 0 0 -upVector 0 1 0 -worldUpType "vector" -worldUpVector 0 1 0 $knee ($moCapNs+"PoleVectorLocatorOffset"+$side);
+		select $hip $ankle;
+		setAttr ($moCapNs+"PoleVectorLocator"+$side+".tx") ((($distA+$distB)/2.0)/`getAttr MotionCaptureLibraryScale.sx`);
+		}
+	}
+
+for ($b=1;$b>-2;$b=$b-2)
+	{
+	if ($b==1)  {$side="_R";$rightLeft="Right";$rightLeftSuffix="_r";}
+	if ($b==-1) {$side="_L";$rightLeft="Left";$rightLeftSuffix="_l";}
+
+	$tempString={("FKHip"+$side),("FKKnee"+$side),("FKAnkle"+$side),("FKToes"+$side),("IKLeg"+$side),("PoleLeg"+$side),("IKToes"+$side),("FKScapula"+$side),("FKShoulder"+$side),("FKElbow"+$side),("FKWrist"+$side)};
+	$constraintObjs=`stringArrayCatenate $tempString $constraintObjs`;
+	if ($altSkeletonType==0)
+		$tempString={($rightLeft+"UpLeg"),($rightLeft+"Leg"),($rightLeft+"Leg"),($rightLeft+"ToeBase"),($rightLeft+"Foot"),("PoleVectorLocator"+$side),($rightLeft+"ToeBase"),($rightLeft+"Shoulder"),($rightLeft+"Arm"),($rightLeft+"ForeArm"),($rightLeft+"Hand")};
+	
+	if ($altSkeletonType==1)
+		$tempString={("thigh"+$rightLeftSuffix),("calf"+$rightLeftSuffix),("foot"+$rightLeftSuffix),("ball"+$rightLeftSuffix),("foot"+$rightLeftSuffix),("PoleVectorLocator"+$side),("ball"+$rightLeftSuffix),("clavicle"+$rightLeftSuffix),("upperarm"+$rightLeftSuffix),("lowerarm"+$rightLeftSuffix),("hand"+$rightLeftSuffix)};
+	
+	if ($altSkeletonType==2)
+	{
+		if ($b==1)  {$side="_R";$rightLeft="Right";$rightLeftSuffix="_R";}
+	if ($b==-1) {$side="_L";$rightLeft="Left";$rightLeftSuffix="_L";}
+
+		$tempString={("Hip"+$rightLeftSuffix),("Knee"+$rightLeftSuffix),("Ankle"+$rightLeftSuffix),("Toes"+$rightLeftSuffix),("Ankle"+$rightLeftSuffix),("PoleVectorLocator"+$side),("Ankle"+$rightLeftSuffix),("Scapula"+$rightLeftSuffix),("Shoulder"+$rightLeftSuffix),("Elbow"+$rightLeftSuffix),("Wrist"+$rightLeftSuffix)};
+	
+	}
+	
+	$constraintToObjs=`stringArrayCatenate $tempString $constraintToObjs`;
+
+	//fingers
+	for ($y=0;$y<size($fingers);$y++)
+		for ($i=1;$i<4;$i++)
+			{
+			$asFKFinger=$nameSpace+"FK"+$fingers[$y]+"Finger"+$i+$side;
+			$moCapFingerJoint=$rightLeft+"Hand"+$fingers[$y]+$i;
+			if ($altSkeletonType==1)
+				$moCapFingerJoint=`tolower $fingers[$y]`+"_"+`asDoPadd $i 2`+$rightLeftSuffix;
+
+			if ($altSkeletonType==2)
+			{
+				$moCapFingerJoint= $fingers[$y]+"Finger"+`asDoPadd $i 1`+$rightLeftSuffix;
+
+			}
+
+
+			$constraintObjs[size($constraintObjs)]=$asFKFinger;
+			$constraintToObjs[size($constraintToObjs)]=$moCapFingerJoint;
+			}
+	}
+
+for ($i=0;$i<size($constraintObjs);$i++)
+	{	
+	
+	if (!`objExists ($nameSpace+$constraintObjs[$i])`)$constraintObjs[$i]= `substitute $nameSpace $constraintObjs[$i] ""`;
+
+	if (!`objExists ($moCapNs+$constraintToObjs[$i])` || !`objExists ($nameSpace+$constraintObjs[$i])`)
+		{
+			print($moCapNs+$constraintToObjs[$i]+"-------->"+$nameSpace+$constraintObjs[$i]+";\n");
+			continue;
+		}
+	if (`gmatch $constraintObjs[$i] "FK*"` || `gmatch $constraintObjs[$i] "IKToes_*"`)
+		$tempString=`orientConstraint -mo ($moCapNs+$constraintToObjs[$i]) ($nameSpace+$constraintObjs[$i])`;
+	else if (`gmatch $constraintObjs[$i] "Pole*"`)
+		$tempString=`pointConstraint ($moCapNs+$constraintToObjs[$i]) ($nameSpace+$constraintObjs[$i])`;
+	else
+		$tempString=`parentConstraint -mo ($moCapNs+$constraintToObjs[$i]) ($nameSpace+$constraintObjs[$i])`;
+	$cn[size($cn)]=$tempString[0];
+	$numConnected++;
+	}
+
+
+for ($i=0;$i<size($cn);$i++)
+	if (!`attributeExists moCapLibCN $cn[$i]`)
+		addAttr -k 0 -ln moCapLibCN -at bool -dv 1 $cn[$i];
+
+print ("// Motion Capture Connected ("+$numConnected+" controllers).\n");
+}
+
+global proc asMCLBakeBody (string $uiName)
+{
+string $nameSpace=`getNameSpaceFromtUIName $uiName`;
+string $sel[]=`ls -sl`;
+string $controlSetMembers[];
+string $refFiles[]=`file -q -r`;
+
+if (!`objExists ($nameSpace+"ControlSet")`)
+	error "No controlSets detected";
+
+$controlSetMembers=`sets -q ($nameSpace+"ControlSet")`;
+select $controlSetMembers;
+bakeResults -simulation true -t (`playbackOptions -q -min`+":"+`playbackOptions -q -max`) -sampleBy 1 -disableImplicitControl true -preserveOutsideKeys false -sparseAnimCurveBake false -removeBakedAttributeFromLayer false 
+	-bakeOnOverrideLayer false -controlPoints false -shape false $controlSetMembers;
+select $controlSetMembers;
+evalEcho "delete -staticChannels -unitlessAnimationCurves false -hierarchy none -controlPoints 0 -shape 1";
+
+//remove MotionCaptureLibrary-reference
+for ($i=0;$i<size($refFiles);$i++)
+	if (`file -q -ns $refFiles[$i]`=="MotionCaptureLibrary")
+		file -rr $refFiles[$i];
+if (`objExists MotionCaptureLibraryScale`)
+	delete MotionCaptureLibraryScale;
+
+if (`namespace -ex MotionCaptureLibrary`)
+	namespace -rm MotionCaptureLibrary;
+
+catchQuiet (`select $sel`);
+print ("// Body animations baked.\n");
+}
+global proc asMCLDisconnectBody (string $uiName)
+{
+float $currentTime=`currentTime -q`;
+string $tempString[];
+
+currentTime -1;
+$tempString=`ls -type constraint -type multiplyDivide`;
+for ($i=0;$i<size($tempString);$i++)
+	if (`attributeExists moCapLibCN $tempString[$i]`)
+		delete $tempString[$i];
+currentTime $currentTime;
+
+print "// Motion Capture Diconnected.\n";
+}
+
+
+global proc string getNameSpaceFromtUIName (string $uiName)
+{
+	
+string $nameSpace;
+if ($uiName=="")
+{
+	
+	$nameSpace=`getNameSpaceFromSelection`;
+
+}
+else if (`optionMenu -q -ex ($uiName+"OptionMenu")`)
+	{
+	$nameSpace=`optionMenu -q -v ($uiName+"OptionMenu")`;
+	if ($nameSpace==":")
+		$nameSpace="";
+	}
+
+return $nameSpace;
+}
+
+global proc asFL ()
+{
+string $framLayouts[]=`lsUI -type frameLayout`;
+for ($i=0;$i<size($framLayouts);$i++)
+	if (`gmatch $framLayouts[$i] "as*FrameLayout"`)
+		optionVar -iv $framLayouts[$i] `frameLayout -q -cl $framLayouts[$i]`;
+}
+
+global proc string[] asNameControlSetsFromUiName (string $uiName)
+{
+int $selectedTabIndex;
+string $sel[]=`ls -sl`;
+string $controlSets[];
+string $nameSpace=`getNameSpaceFromtUIName $uiName`;
+string $tempString[],$tabLabels[];
+string $controlSetsText;
+
+/*Removed this, as we want to get result even if any geo is selected e,g for GoToBuildPose
+if ($uiName=="" && $sel[0]!="")
+	{
+	if (`objExists ($nameSpace+"ControlSet")`)
+		if (`sets -im ($nameSpace+"ControlSet") $sel[0]`)
+			$controlSets[0]=($nameSpace+"ControlSet");
+	if (`objExists ($nameSpace+"FaceControlSet")`)
+		if (`sets -im ($nameSpace+"FaceControlSet") $sel[0]`)
+			$controlSets[0]=($nameSpace+"FaceControlSet");
+	}
+*/
+//Note new behaviour does not require selection, so assuming Body, but if Face Sel then Face
+if ($uiName=="")
+	{
+	if (`objExists ($nameSpace+"ControlSet")`)
+			$controlSets[0]=($nameSpace+"ControlSet");
+	if (`objExists ($nameSpace+"FaceControlSet")`)
+		if ($sel[0]!="")
+			if (`sets -im ($nameSpace+"FaceControlSet") $sel[0]`)
+				$controlSets[0]=($nameSpace+"FaceControlSet");
+	}
+else if ($uiName=="bodySetup")
+	$controlSets[0]="ControlSet";
+else if ($uiName=="faceSetup")
+	$controlSets[0]="FaceControlSet";
+else if (`text -q -ex ($uiName+"ControlSetsText")`)//Selector
+	{
+	$controlSetsText=`text -q -l ($uiName+"ControlSetsText")`;
+	tokenize $controlSetsText $tempString;
+	for ($i=0;$i<size($tempString);$i++)
+		if (`objExists ($nameSpace+$tempString[$i])`)
+			$controlSets[size($controlSets)]=$nameSpace+$tempString[$i];
+	}
+else if ($uiName=="asPicker" && `tabLayout -q -ex asPickerTabLayout`)//Picker
+	{
+	$tabLabels=`tabLayout -q -tl asPickerTabLayout`;
+	$selectedTabIndex=`tabLayout -q -selectTabIndex asPickerTabLayout`;
+	if (`gmatch $tabLabels[$selectedTabIndex-1] "*face*"`)
+		$controlSets[0]=$nameSpace+"FaceControlSet";
+	else
+		$controlSets[0]=$nameSpace+"ControlSet";
+	}
+else if ($uiName=="asPoserDefault" && `menuItem -q -ex asPoserControlSetsMenu`)//PoserDesigner
+	{
+	$tempString=`menu -q -ia asPoserControlSetsMenu`;
+	for ($i=0;$i<size($tempString);$i++)
+		if (`menuItem -q -cb $tempString[$i]`)
+			$controlSets[size($controlSets)]=$nameSpace+`menuItem -q -l $tempString[$i]`;
+	}
+else if (`objExists ($nameSpace+"ControlSet")`)
+	$controlSets[0]=$nameSpace+"ControlSet";
+
+return $controlSets;
+}
+global proc asGoToBuildPoseOptions (string $nameSpace, string $controlSet)
+{
+if (`objExists asGoToBuildPoseOptions`)
+	delete asGoToBuildPoseOptions;
+createNode -n asGoToBuildPoseOptions transform;
+addAttr -ln nameSpace -dt "string" asGoToBuildPoseOptions;
+setAttr -type "string" asGoToBuildPoseOptions.nameSpace $nameSpace;
+addAttr -ln controlSet -dt "string" asGoToBuildPoseOptions;
+setAttr -type "string" asGoToBuildPoseOptions.controlSet $controlSet;
+asGoToBuildPose bodySetup;
+}
+
+global proc asGoToBuildPose (string $uiName)
+{
+int $ctrlButton,$asGoingToTPose,$skipGoingToTPose;
+if ((`getModifiers`/4) %  2)
+	$ctrlButton=1;
+float $dv;
+float $pos[],$rot[];
+string $nameSpace,$m,$expString,$side;
+string $controlSets[],$failedCmds[],$tPoseRequiredObjs[];
+string $sel[]=`ls -sl`;
+
+if (`objExists asGoingToTPose`)
+	{
+	$asGoingToTPose=1;
+	delete asGoingToTPose;
+	}
+
+//if (`asHotKeyCheck "asGoToBuildPose \"\""`) return;
+$nameSpace=`getNameSpaceFromtUIName $uiName`;
+$controlSets=`asNameControlSetsFromUiName $uiName`;
+if (!size($controlSets))
+	error "No controlSets detected. select a controller";
+
+if (`objExists asGoToBuildPoseOptions`)
+	{
+	$nameSpace=`getAttr asGoToBuildPoseOptions.nameSpace`;
+	$controlSets[0]=`getAttr asGoToBuildPoseOptions.controlSet`;
+	delete asGoToBuildPoseOptions;
+	}
+
+string $buildPose="buildPose";
+if (`gmatch $controlSets[0] "*FaceControlSet"`)
+    $buildPose="faceBuildPose";
+
+string $tempString[],$tempString2[],$buffer[];
+string $setAttrCmd,$cmd;
+
+
+$setAttrCmd=`getAttr ($nameSpace+$buildPose+".udAttr")`;
+if (`attributeExists udExtraAttr ($nameSpace+$buildPose)`)
+	$setAttrCmd+=`getAttr ($nameSpace+$buildPose+".udExtraAttr")`;
+tokenize $setAttrCmd ";" $tempString;
+for ($y=0;$y<size($tempString);$y++)
+	{
+	$cmd=$tempString[$y];
+	if ($cmd=="")
+		continue;
+	if ($nameSpace!="")
+		{
+		tokenize $cmd $buffer;
+		if (`gmatch $cmd "xform*"`)
+			$substituteWordNr=size($buffer)-1;
+		else
+			$substituteWordNr=1;
+		$cmd="";
+		for ($z=0;$z<size($buffer);$z++)
+			{
+			if ($z==$substituteWordNr)
+				$cmd+=$nameSpace;
+			$cmd+=$buffer[$z]+" ";
+			}
+		}
+	if ($ctrlButton)
+		if (`gmatch $cmd "*Main.*"`)
+			continue;
+	if (catchQuiet (`eval ($cmd)`))
+		{
+		warning ("Failed: "+$cmd+"\n");
+		$failedCmds[size($failedCmds)]=$cmd;
+		}
+	}
+
+//Tpose
+if ($asGoingToTPose)
+	{
+	$tPoseRequiredObjs={"FKExtraHip","FKExtraKnee","FKExtraAnkle","FKExtraShoulder","FKExtraElbow","FKExtraWrist",
+		"IKExtraLeg","PoleExtraLeg"};
+	for ($b=1;$b>-2;$b=$b-2)
+		{
+		if ($b==1)  $side="_R";
+		if ($b==-1) $side="_L";
+
+		for ($i=0;$i<size($tPoseRequiredObjs);$i++)
+			if (!`objExists ($nameSpace+$tPoseRequiredObjs[$i]+$side)`)
+				{
+				warning ("Required node: \""+$nameSpace+$tPoseRequiredObjs[$i]+$side+"\" Not Found, Unable to go to Tpose");
+				$skipGoingToTPose=1;
+				break;
+				}
+		if ($skipGoingToTPose)
+			break;
+
+		xform -ws -ro 0 -90 ((-90*$b)+2) ($nameSpace+"FKExtraHip"+$side);
+		xform -ws -ro 0 -90 ((-90*$b)-2) ($nameSpace+"FKExtraKnee"+$side);
+		xform -ws -ro (90*$b) 0 (-90*$b) ($nameSpace+"FKExtraAnkle"+$side);
+		xform -ws -ro (-90*$b) 0 180 ($nameSpace+"FKExtraShoulder"+$side);
+		xform -ws -ro (-90*$b) 0 180 ($nameSpace+"FKExtraElbow"+$side);
+		xform -ws -ro (-90*$b) 0 180 ($nameSpace+"FKExtraWrist"+$side);
+
+		//IK-Leg
+		asAlignIK2FK $nameSpace {("FKIKLeg"+$side)};
+		$pos=`xform -q -os -t  ($nameSpace+"IKLeg"+$side)`;
+		$rot=`xform -q -os -ro ($nameSpace+"IKLeg"+$side)`;
+		xform -os -t $pos[0] $pos[1] $pos[2] -ro $rot[0] $rot[1] $rot[2] ($nameSpace+"IKExtraLeg"+$side);
+		xform -os -t 0 0 0 -ro 0 0 0 ($nameSpace+"IKLeg"+$side);
+		//PoleLeg
+		$pos=`xform -q -os -t  ($nameSpace+"PoleLeg"+$side)`;
+		xform -os -t $pos[0] $pos[1] $pos[2] ($nameSpace+"PoleExtraLeg"+$side);
+		xform -ws -ro 0 0 0 ($nameSpace+"PoleExtraLeg"+$side);
+		xform -os -t 0 0 0 ($nameSpace+"PoleLeg"+$side);
+
+		//IK-Arm
+		asAlignIK2FK $nameSpace {("FKIKArm"+$side)};
+		//PoleArm
+		xform -os -t 0 0 0 ($nameSpace+"PoleArm"+$side);
+		$pos=`xform -q -ws -t  ($nameSpace+"IKArm"+$side)`;
+		xform -ws -t $pos[0] $pos[1] $pos[2] ($nameSpace+"PoleExtraArm"+$side);
+		setAttr ($nameSpace+"PoleExtraArm"+$side+".tx") 0;
+		setAttr ($nameSpace+"PoleExtraArm"+$side+".tz") 0;
+		xform -ws -ro 0 0 0 ($nameSpace+"PoleExtraArm"+$side);
+		}
+	}
+
+//mh
+if (`objExists ($nameSpace+"GRP_faceGUI")`)
+	{
+	$tempString=`listRelatives -ad -type transform ($nameSpace+"GRP_faceGUI")`;
+	for ($i=0;$i<size($tempString);$i++)
+		{
+		if (`gmatch $tempString[$i] "*CTRL_faceGUI*"`)//main top node comes with default offsets that should not reset
+			continue;
+		if (`gmatch $tempString[$i] "*CTRL_*"`)
+			{
+			$tempString2=`listAttr -k $tempString[$i]`;
+			for ($y=0;$y<size($tempString2);$y++)
+				{
+				if (!`getAttr -se ($tempString[$i]+"."+$tempString2[$y])`)
+					continue;
+				$dv=0;
+				if (`gmatch $tempString2[$y] "scale*"` || $tempString2[$y]=="visibility")
+					$dv=1;
+				if ("currentUVSet"==$tempString2[$y])continue;	
+				setAttr ($tempString[$i]+"."+$tempString2[$y]) $dv;
+				}
+			}
+		}
+	}
+
+//run
+string $run,$fitTopNode,$objAttr;
+for ($i=0;$i<size($controlSets);$i++)
+	{
+	if (`gmatch $controlSets[$i] "*ControlSet"`)
+		if (`objExists ($nameSpace+"FitSkeleton")`)
+			$fitTopNode=$nameSpace+"FitSkeleton";
+	if (`gmatch $controlSets[$i] "*FaceControlSet"`)
+		$fitTopNode=($nameSpace+"FaceFitSkeleton");
+	}
+
+//expressions (wheel & rollingBall)
+$tempString=`ls -type expression`;
+for ($i=0;$i<size($tempString);$i++)
+	{
+	if (!`gmatch $tempString[$i] "*WheelExpression_*"`)
+		continue;
+	$tempString2=`listConnections -s 0 -d 1 -type transform $tempString[$i]`;
+	for ($y=0;$y<size($tempString2);$y++)
+		{
+		if (!`attributeExists reset $tempString2[$y]`)
+			continue;
+		setAttr ($tempString2[$y]+".reset") 1;
+		currentTime `currentTime -q`;
+		setAttr ($tempString2[$y]+".reset") 0;
+		}
+	}
+
+if (`objExists $fitTopNode`)
+	if (`attributeExists "run" $fitTopNode`)
+		{
+		$run=`getAttr ($fitTopNode+".run")`;
+		if ($run!="")
+			{
+			if ($nameSpace=="")
+				{
+//				catch (`eval ($run)`);
+				tokenize $run ";" $tempString;
+				for ($y=0;$y<size($tempString);$y++)
+					{
+					$cmd=$tempString[$y];
+					if ($cmd=="")
+						continue;
+					if (catchQuiet (`eval ($cmd)`))
+						{
+						warning ("Failed: "+$cmd+"\n");
+						$failedCmds[size($failedCmds)]=$cmd;
+						}
+					}
+				}
+			else
+				{
+				tokenize $run ";" $tempString;
+				for ($i=0;$i<size($tempString);$i++)
+					{
+					tokenize $tempString[$i] $tempString2;
+					$objAttr=`substitute "\"" $tempString2[1] ""`;
+					$objAttr=`substitute "\"" $objAttr ""`;
+					$cmd=$tempString2[0]+" "+$nameSpace+$objAttr+" "+$tempString2[2]+";";
+					catch (`eval ($cmd)`);
+					}
+				}
+			}
+		}
+
+if (size($failedCmds) && ($uiName=="bodySetup" || $uiName=="faceSetup")) // not avaible from Selector/Picker as file is likly referenced-in
+	{
+	$m="The following commands failed,\n( Possibly these are controllers that have been removed)\nRemove these commands from the Pose-command ?\n\n";
+	for ($i=0;$i<size($failedCmds);$i++)
+		{
+		$m+=$failedCmds[$i]+"\n";
+		if ($i==25)
+			{
+			$m+="\n...And "+`size($failedCmds)`+" more..";
+			break;
+			}
+		}
+	if (`confirmDialog -t Confirm -m $m -b "Ok, Remove" -b "Cancel" -db "Ok"`=="Ok, Remove")
+		asUpdatePoseAttributes;
+	}
+}
+
+global proc asMCLRemoveBody (string $uiName)
+{
+string $nameSpace=`getNameSpaceFromtUIName $uiName`;
+//string $nameSpace=`getNameSpaceFromSelection`;
+print("//name space:"+$nameSpace+";\n");
+string $refFiles[]=`file -q -r`;
+string $sel[]=`ls -sl`;
+string $tempString[],$tempString2[],$controlSetMembers[];
+
+if (!`objExists ($nameSpace+"ControlSet")`)
+	error "No controlSets detected. select a controller";
+
+$controlSetMembers=`sets -q ($nameSpace+"ControlSet")`;
+select $controlSetMembers;
+string $animCurves[]=`listConnections -type animCurve -s 1 -d 0`;
+if (size($animCurves))
+	delete $animCurves;
+
+//remove constraint
+for ($i=0;$i<size($controlSetMembers);$i++)
+	{
+	$tempString=`listConnections -type constraint -s 1 -d 0 ($controlSetMembers[$i]+".rx")`;
+	for ($y=0;$y<size($tempString);$y++)
+		{
+		if (!`objExists $tempString[$y]`)
+			continue;
+		$tempString2=`listConnections -s 1 -d 0 ($tempString[$y]+".target[0].targetRotate")`;
+		if (`gmatch $tempString2[0] "MotionCaptureLibrary:*"`)
+			delete $tempString[$y];
+		}
+	}
+
+//remove MotionCaptureLibrary-reference
+for ($i=0;$i<size($refFiles);$i++)
+	if (`file -q -ns $refFiles[$i]`=="MotionCaptureLibrary")
+		file -rr $refFiles[$i];
+if (`objExists MotionCaptureLibraryScale`)
+	delete MotionCaptureLibraryScale;
+
+if (`objExists MoCapConstraints`)//in case of useMoCapMatcher
+	delete MoCapConstraints;
+
+$tempString=`ls "MotionCaptureLibrary:*"`;
+if (size($tempString))
+	delete $tempString;
+
+$tempString=`ls "TPose:*"`;
+if (size($tempString))
+	delete $tempString;
+
+if (`namespace -ex MotionCaptureLibrary`)
+	namespace -rm MotionCaptureLibrary;
+if (`namespace -ex TPose`)
+	namespace -rm TPose;
+
+if (`objExists ($nameSpace+"ControlSet")`) asGoToBuildPoseOptions $nameSpace "ControlSet";
+
+catchQuiet (`select $sel`);
+print ("// Body animations removed.\n");
+}
+
+
+
+
+
+global proc string getNameSpaceFromSelection ()
+{
+string $nameSpace;
+string $sel[]=`ls -sl`;
+string $tempString[];
+
+for ($i=0;$i<size($sel);$i++)
+	{
+	if (!`gmatch $sel[$i] "*:*"`)
+		continue;
+	tokenize $sel[$i] ":" $tempString;
+	// if (!`objExists ($tempString[0]+":Group")`)
+	// 	continue;
+	$nameSpace=$tempString[0]+":";
+	}
+return $nameSpace;
+}
+
+
+
+global proc string[] findTopJoint(string $node) {
+    string $joints[];
+    string $children[] = `listRelatives -c $node`;
+
+    if (size($children) == 0) {
+        return $joints;
+    }
+
+    for ($child in $children) {
+        if (`nodeType $child` == "joint") {
+            $joints[size($joints)] = $child;
+        } else {
+            string $childJoints[] = findTopJoint($child);
+            $joints = stringArrayCatenate($joints, $childJoints);
+        }
+    }
+
+    return $joints;
+}
+
+
+
+global proc getMocapFbxFils ()
+{
+string $mocapLocation=`getenv MOCAP_LOCATION`;
+print("//mocap path:"+$mocapLocation+";\n");
+
+if (!`file -q -ex $mocapLocation`)
+	return;
+string $files[]=`getFileList -fs "*.fbx" -fld $mocapLocation`;
+setParent -menu asMCLMoCapCustomOptionMenu;
+for ($i=0;$i<size($files);$i++)
+	menuItem -l $files[$i];
+}
+
+
+
+
+
+
+
+global proc MCLApply (string $uiName, string $type)
+{
+global string $unrealMannequinJoints;
+global string $advanceSkeletionJoints;
+
+int $lastKeyFrameNr,$altSkeletonType;
+int $autoKeyState=`autoKeyframe -q -state`;
+float $lowestFootTy,$s,$sizeAdv,$sizeMoCap;
+float $posA[],$posB[],$keyTimes[],$rot[],$rotA[],$rotB[];
+string $mayaLocation=`getenv MAYA_LOCATION`;
+string $mocapFbxLocation;
+//string $asScriptLocation=`asGetScriptLocation`;
+
+string $fileName,$fld,$file,$moCapCNUlibDir,$clipLongName,$clipShortName,$topNode,$tPoseNameSpace;
+string $rightShoulder,$rightArm,$rightForeArm,$rightHand,$rightUpLeg,$rightLeg,$rightFoot;
+string  $leftShoulder, $leftArm, $leftForeArm, $leftHand, $leftUpLeg, $leftLeg, $leftFoot;
+string $basename=`basenameEx $file`;
+string $ref="MotionCaptureLibrary:"+$basename+":Reference";
+string $nameSpace=`getNameSpaceFromtUIName $uiName`;
+string $hipsJoint,$side,$rightLeft,$mpd,$moCapNs;
+string $tempString[],$moCapJoints[],$files[];
+
+if ($autoKeyState) autoKeyframe -state 0;
+
+if ($type=="Maya") 
+	{
+	$mocapFbxLocation=$mayaLocation+"/Examples/Animation/Motion_Capture/FBX";
+	$fileName=`optionMenu -q -v ("asMCLMoCap"+$type+"OptionMenu")`;
+	$file=$mocapFbxLocation+"/"+$fileName;
+	}
+
+
+if ($type=="Custom") 
+	{	
+	string $mocapLocation=`getenv MOCAP_LOCATION`;
+	$fileName=`optionMenu -q -v ("asMCLMoCap"+$type+"OptionMenu")`;
+	$file=$mocapLocation+"/"+$fileName;
+	}
+
+if ($file=="")
+	error "No MotionCapture Example choosen";
+if (!`file -q -ex $file`)
+	error ("File not found:\""+$file+"\"");
+
+asMCLRemoveBody $uiName;
+
+$topNodesBefore=`ls -as`;
+
+if ($type=="Custom") 
+	{
+	file -r -namespace "MotionCaptureLibrary" $file;
+	file -importReference $file;
+	}
+else
+	file -i -namespace "MotionCaptureLibrary" $file;
+
+$topNodesAfter=`ls -as`;
+for ($i=0;$i<size($topNodesAfter);$i++)
+	if (!`stringArrayCount $topNodesAfter[$i] $topNodesBefore`)
+		{
+		// $tempString=`listRelatives -type joint -c $topNodesAfter[$i]`;
+		$tempString=`findTopJoint $topNodesAfter[$i]`;
+
+		if (size($tempString))
+			{
+			//$topNode=$topNodesAfter[$i];
+			$topNode=$tempString[0];
+			break;
+			}
+		}
+
+print ("// detected MoCap TopNode:\""+$topNode+"\".\n");
+
+tokenize $topNode ":" $tempString;
+if (size($tempString)>1)//if the file is a fbx, nameSpace does not get added upon import
+	$moCapNs=$tempString[0]+":";
+
+if ($moCapNs=="")
+	{
+	if (!`namespace -ex MotionCaptureLibrary`)
+		namespace -addNamespace MotionCaptureLibrary;
+	namespace -setNamespace MotionCaptureLibrary;
+	evalDeferred ("namespace -setNamespace \":\"");
+	$tempString=`listRelatives -ad -type transform $topNode`;
+	$tempString[size($tempString)]=$topNode;
+	for ($i=0;$i<size($tempString);$i++)
+		{
+		rename $tempString[$i] ("TEMP_"+$tempString[$i]);
+		rename ("MotionCaptureLibrary:TEMP_"+$tempString[$i]) $tempString[$i];
+		}
+	namespace -setNamespace ":";
+	$moCapNs="MotionCaptureLibrary:";
+	$topNode=$moCapNs+$topNode;
+	}
+
+$moCapJoints=`listRelatives -type joint -ad $topNode`;
+
+currentTime 0;
+if (`nodeType $topNode`=="joint" && `getAttr ($topNode+".ty")`>0)//chek ty>0 as this could be Unreal-root, which is not $hipsJoint;
+	$hipsJoint=$topNode;
+else
+	{
+	$tempString=`listRelatives -type joint -c $topNode`;
+	$hipsJoint=$tempString[0];
+	}
+
+createNode -n MotionCaptureLibraryScale transform;
+parent $topNode MotionCaptureLibraryScale;
+
+//Names (CMU & Maya have MoCap standard names e.g. RightShoulder, but Custom could have alternative names
+$rightShoulder="RightShoulder";$leftShoulder="LeftShoulder";
+$rightArm="RightArm";$leftArm="LeftArm";
+$rightForeArm="RightForeArm";$leftForeArm="LeftForeArm";
+$rightHand="RightHand";$leftHand="LeftHand";
+$rightUpLeg="RightUpLeg";$leftUpLeg="LeftUpLeg";
+$rightLeg="RightLeg";$leftLeg="RightLeg";
+$rightFoot="RightFoot";$leftFoot="LeftFoot";
+
+if (`objExists ($moCapNs+"upperarm_r")`)
+	{
+	$altSkeletonType=1;//Unreal Mannequin
+	addAttr -ln altSkeletonType -at long -dv 1 MotionCaptureLibraryScale;
+	$rightShoulder="clavicle_r";$leftShoulder="clavicle_l";
+	$rightArm="upperarm_r";$leftArm="upperarm_l";
+	$rightForeArm="lowerarm_r";$leftForeArm="lowerarm_l";
+	$rightHand="hand_r";$leftHand="hand_l";
+	$rightUpLeg="thigh_r";$leftUpLeg="thigh_l";
+	$rightLeg="calf_r";$leftLeg="calf_l";
+	$rightFoot="foot_r";$leftFoot="foot_l";
+
+	if (!`objExists "root"`)//might already be working with a rig that has UnrealJoints added
+		{
+		createNode -n asMoCapMatcherCreatingUnrealMannequinJoints transform;
+		addAttr -ln nameSpace -dt "string" asMoCapMatcherCreatingUnrealMannequinJoints;
+		setAttr -type "string" asMoCapMatcherCreatingUnrealMannequinJoints.nameSpace $nameSpace;
+		$unrealMannequinJoints="Quinn (UE5)";
+		asCreateUnrealMannequinJoints;
+
+		$tPoseNameSpace="TPose";
+		if (`namespace -ex TPose`)
+			delete `ls "TPose:*"`;
+		else
+			namespace -addNamespace TPose;
+		namespace -setNamespace TPose;
+		$tempString=`listRelatives -ad -type transform root`;
+		$tempString[size($tempString)]="root";
+		for ($i=0;$i<size($tempString);$i++)
+			{
+			rename $tempString[$i] ("TEMP_"+$tempString[$i]);
+			rename ("TPose:TEMP_"+$tempString[$i]) $tempString[$i];
+			}
+		setAttr TPose:root.v 0;
+		namespace -setNamespace ":";
+		}
+	}
+
+if (`objExists ($moCapNs+"Shoulder_R")`)
+	{
+	$altSkeletonType=2;//Advance skeletion
+	addAttr -ln altSkeletonType -at long -dv 2 MotionCaptureLibraryScale;
+	$rightShoulder="Scapula_R";$leftShoulder="Scapula_L";
+	$rightArm="Shoulder_R";$leftArm="Shoulder_L";
+	$rightForeArm="Elbow_R";$leftForeArm="Elbow_L";
+	$rightHand="Wrist_R";$leftHand="Wrist_L";
+	$rightUpLeg="Hip_R";$leftUpLeg="Hip_L";
+	$rightLeg="Knee_R";$leftLeg="Knee_L";
+	$rightFoot="Ankle_R";$leftFoot="Ankle_L";
+
+	// if (!`objExists "Root_M"`)//might already be working with a rig that has Advance Joints added
+	// 	{
+	// 	createNode -n asMoCapMatcherCreatingAdvanceSketionsJoints transform;
+	// 	addAttr -ln nameSpace -dt "string" asMoCapMatcherCreatingAdvanceSketionsJoints;
+	// 	setAttr -type "string" asMoCapMatcherCreatingAdvanceSketionsJoints.nameSpace $nameSpace;
+	// 	$advanceSkeletionJoints="AdvanceSkeletion";
+	// 	asCreateAdvanceSketionsJoints;
+
+	// 	$tPoseNameSpace="TPose";
+	// 	if (`namespace -ex TPose`)
+	// 		delete `ls "TPose:*"`;
+	// 	else
+	// 		namespace -addNamespace TPose;
+	// 	namespace -setNamespace TPose;
+	// 	$tempString=`listRelatives -ad -type transform root`;
+	// 	$tempString[size($tempString)]="root";
+	// 	for ($i=0;$i<size($tempString);$i++)
+	// 		{
+	// 		rename $tempString[$i] ("TEMP_"+$tempString[$i]);
+	// 		rename ("TPose:TEMP_"+$tempString[$i]) $tempString[$i];
+	// 		}
+	// 	setAttr TPose:root.v 0;
+	// 	namespace -setNamespace ":";
+	// 	}
+
+	}
+
+//Rmoved, as some MoCap animations do not start with feet on the ground. e.g. Hoverboard_Hover clip
+//assume one of the feet are touching the ground, at the start of animation, Find the Lowest one
+//if (`objExists ($moCapNs+$leftFoot)`)	  $posA=`xform -q -ws -t ($moCapNs+$leftFoot)`;
+//if (`objExists ($moCapNs+$rightFoot)`)	$posB=`xform -q -ws -t ($moCapNs+$rightFoot)`;
+//$lowestFootTy=`min $posA[1] $posB[1]`;
+
+$keyTimes=`keyframe -q -tc ($hipsJoint+".tx")`;
+$lastKeyFrameNr=$keyTimes[size($keyTimes)-1];
+
+playbackOptions -min -1 -ast -1 -max $lastKeyFrameNr -aet $lastKeyFrameNr;
+currentTime -1;
+//asSetAllFK "";
+if (`objExists ($nameSpace+"FKIKLeg_R")`) setAttr ($nameSpace+"FKIKLeg_R.FKIKBlend") 10;
+if (`objExists ($nameSpace+"FKIKLeg_L")`) setAttr ($nameSpace+"FKIKLeg_L.FKIKBlend") 10;
+if (`objExists ($nameSpace+"FKIKSpine_M")`) setAttr ($nameSpace+"FKIKSpine_M.FKIKBlend") 0;
+if (`objExists ($nameSpace+"FKIKArm_R")`) setAttr ($nameSpace+"FKIKArm_R.FKIKBlend") 0;
+if (`objExists ($nameSpace+"FKIKArm_L")`) setAttr ($nameSpace+"FKIKArm_L.FKIKBlend") 0;
+
+//zero-out MoCap Skeleton joints
+if ($altSkeletonType==0)
+	{
+	for ($i=0;$i<size($moCapJoints);$i++)
+		setAttr ($moCapJoints[$i]+".r") -type float3 0 0 0;
+	setAttr ($hipsJoint+".tx") 0;
+	setAttr ($hipsJoint+".tz") 0;
+	}
+if ($altSkeletonType==1)
+	{
+	//could have a "root" joint above $hipsJoint, (aka Unreal Root Joints)  so include making sure this is also zeroed
+	$tempString=`listRelatives -p -type joint $hipsJoint`;
+	if (`gmatch $tempString[0] "*root"`)
+		{
+		xform -os -t 0 0 0 -ro 0 0 0 -s 1 1 1 $tempString[0];
+		setKeyframe $tempString[0];
+		}
+	
+//	setAttr ($hipsJoint+".tx") 0;
+//	setAttr ($hipsJoint+".ty") 0;
+	}
+if ($altSkeletonType==2)
+	{
+	//could have a "root" joint above $hipsJoint, (aka Unreal Root Joints)  so include making sure this is also zeroed
+	$tempString=`listRelatives -p -type joint $hipsJoint`;
+	if (`gmatch $tempString[0] "*Root_M"`)
+		{
+		xform -os -t 0 0 0 -ro 0 0 0 -s 1 1 1 $tempString[0];
+		setKeyframe $tempString[0];
+		}
+	
+	setAttr ($hipsJoint+".tx") 0;
+    setAttr ($hipsJoint+".ty") 0;
+	}
+
+//Attempt to T-Pose MoCap Skeleton
+if ($type=="CNU")
+	{
+	xform -ws -ro 0 0 0 ($moCapNs+$rightShoulder);xform -ws -ro 0 0 0 ($moCapNs+$leftShoulder);
+	xform -ws -ro 0 0 0 ($moCapNs+$rightArm);xform -ws -ro 0 0 0 ($moCapNs+$leftArm);
+	xform -ws -ro 0 0 0 ($moCapNs+$rightForeArm);xform -ws -ro 0 0 0 ($moCapNs+$leftForeArm);
+	xform -ws -ro 0 0 0 ($moCapNs+$rightHand);xform -ws -ro 0 0 0 ($moCapNs+$leftHand);
+	setAttr ($moCapNs+$rightUpLeg+".rz") 20;
+	setAttr ($moCapNs+$leftUpLeg+".rz") -20;
+	}
+if ($type=="Maya")
+	{
+	xform -ws -ro -180 0 180 ($moCapNs+$rightShoulder);xform -ws -ro 0 0 0 ($moCapNs+$leftShoulder);
+	xform -ws -ro 90 0 -180 ($moCapNs+$rightArm);xform -ws -ro 90 0 0 ($moCapNs+$leftArm);
+	}
+
+if ($type=="Project")
+	{
+	xform -ws -ro -180 0 180 ($moCapNs+$rightShoulder);xform -ws -ro 0 0 0 ($moCapNs+$leftShoulder);
+	xform -ws -ro 90 0 -180 ($moCapNs+$rightArm);xform -ws -ro 90 0 0 ($moCapNs+$leftArm);
+	}
+	
+if ($altSkeletonType==1)
+	{
+	for ($i=0;$i<size($moCapJoints);$i++)
+		{
+		$tposeJoint=`substitute "MotionCaptureLibrary" $moCapJoints[$i] $tPoseNameSpace`;
+		if (!`objExists $tposeJoint`)
+//			error ("failed to find t-pose joint: \""+$tposeJoint+"\".\n");
+			{
+			warning ("failed to find t-pose joint: \""+$tposeJoint+"\".\n");
+			continue;
+			}
+		$rot=`getAttr ($tposeJoint+".r")`;
+		setAttr ($moCapJoints[$i]+".r") -type float3 $rot[0] $rot[1] $rot[2];
+		}
+	}
+
+if ($altSkeletonType==2)
+	{
+	for ($i=0;$i<size($moCapJoints);$i++)
+		{
+			// print($moCapJoints[$i]);
+// 		$tposeJoint=`substitute "MotionCaptureLibrary" $moCapJoints[$i] $tPoseNameSpace`;
+
+// 		if (!`objExists $tposeJoint`)
+// //			error ("failed to find t-pose joint: \""+$tposeJoint+"\".\n");
+// 			{
+// 			warning ("failed to find t-pose joint: \""+$tposeJoint+"\".\n");
+// 			continue;
+// 			}
+// 		$rot=`getAttr ($tposeJoint+".r")`;
+// 		setAttr ($moCapJoints[$i]+".r") -type float3 $rot[0] $rot[1] $rot[2];
+	}
+	
+	}
+
+
+//After Straighting, legs and knee straighting probably cause the foot to be lower, so compensate
+/*
+if (`objExists ($moCapNs+$leftFoot)`)
+	{
+	$posA=`xform -q -ws -t ($moCapNs+$leftFoot)`;
+	if ($posA[1]<$lowestFootTy)
+		move -r -ws -wd 0 ($lowestFootTy-$posA[1]) 0 $hipsJoint;
+	}
+*/
+
+$posA=`xform -q -ws -t ($nameSpace+"Root_M")`;
+$posB=`xform -q -ws -t ($nameSpace+"IKLeg_R")`;
+$sizeAdv=`mag<<$posA[0]-$posB[0],$posA[1]-$posB[1],$posA[2]-$posB[2]>>`;
+
+$posA=`xform -q -ws -t $hipsJoint`;
+$posB=`xform -q -ws -t ($moCapNs+$rightFoot)`;
+$sizeMoCap=`mag<<$posA[0]-$posB[0],$posA[1]-$posB[1],$posA[2]-$posB[2]>>`;
+
+$s=$sizeAdv/$sizeMoCap;
+if ($s>1.1 || $s<0.9)
+	setAttr MotionCaptureLibraryScale.s -type float3 $s $s $s;
+
+//match Root pos
+$posA=`xform -q -ws -t ($nameSpace+"Root_M")`;
+xform -ws -t $posA[0] $posA[1] $posA[2] $hipsJoint;
+
+select $moCapJoints;
+setKeyframe;
+
+//Attempt to T-Pose AdvancedSkeleton
+if ($altSkeletonType!=1)// Skip as this could be Unreal Mannequin rigged with AS, so Non-T-BuildPose
+	for ($b=1;$b>-2;$b=$b-2)
+		{
+		if ($b==1)  {$side="_R";$rightLeft="Right";$rotA[0]=0;$rotA[1]=0;$rotA[2]=180;$rotB[0]=90;$rotB[1]=0;$rotB[2]=180;}
+		if ($b==-1) {$side="_L";$rightLeft="Left";$rotA[0]=0;$rotA[1]=0;$rotA[2]=0;$rotB[0]=-90;$rotB[1]=0;$rotB[2]=180;}
+
+		if (`objExists ($nameSpace+"FKShoulder"+$side)`) asSetMoCapWSOrient $rotB[0] $rotB[1] $rotB[2] ($nameSpace+"FKShoulder"+$side) $nameSpace;
+		if (`objExists ($nameSpace+"FKElbow"+$side)`) asSetMoCapWSOrient $rotB[0] $rotB[1] $rotB[2] ($nameSpace+"FKElbow"+$side) $nameSpace;
+		if (`objExists ($nameSpace+"FKWrist"+$side)`) asSetMoCapWSOrient $rotB[0] $rotB[1] $rotB[2] ($nameSpace+"FKWrist"+$side) $nameSpace;
+
+		//Align IK as well
+		if (`objExists ("IKLeg"+$side)` && `objExists ($moCapNs+$rightLeft+"Foot")`) 
+			delete `pointConstraint -skip y ($moCapNs+$rightLeft+"Foot") ("IKLeg"+$side)`;
+		}
+
+asMCLConnectBody $uiName;
+
+setAttr MotionCaptureLibraryScale.v 0;
+if ($autoKeyState) autoKeyframe -state 1;
+select -cl;
+currentTime 0;
+}
+
+
+
+global proc int asFilterCheck (string $nameSpace)
+{
+int $return=0;
+
+string $references[]=`file -q -r`;
+for ($i=0;$i<size($references);$i++)
+	{
+	$refNameSpace=`file -q -ns $references[$i]`;
+	if ($refNameSpace==$nameSpace)
+			$return=1;
+	}
+return $return;
+}
+
+global proc asPopulateNameSpaceMenu ()
+{
+string $optionMenu="asSelectorbipedOptionMenu";
+string $nameSpacesList[]=`namespaceInfo -r -lon`;
+$nameSpacesList=`stringArrayRemove {"UI"} $nameSpacesList`;
+$nameSpacesList[size($nameSpacesList)]="";
+string $itemList[]=`optionMenu -q -ils $optionMenu`;
+$nameSpacesList=`sort $nameSpacesList`;
+
+// if (`asHotKeyCheck "asPopulateNameSpaceMenu \"\""`) return;
+
+for ($item in $itemList)
+	deleteUI $item;
+
+for ($nameSpace in $nameSpacesList)
+	if (`attributeExists "version" ($nameSpace+":Main")` || `attributeExists "version" ($nameSpace+":FaceGroup")`)
+		if (`asFilterCheck $nameSpace`)
+			menuItem -p $optionMenu -l ($nameSpace+":");
+
+
+}
+
+
+global proc MoCapLibraryUI (string $uiName)
+{
+//asEnsureAsGetScriptLocation;
+//string $asScriptLocation=`asGetScriptLocation`;
+string $frameLayouts[]={"asMCLBody","asMCLMoCapMaya"};
+
+//if (`asHotKeyCheck "MoCapLibraryUI \"\""`) return;
+
+if (`upAxis -q -ax`!="y")
+	error "Maya settting are not using Y-up axis, MoCapLibrary requires Y-up";
+
+for ($i=0;$i<size($frameLayouts);$i++)
+	if (!`optionVar -ex ($frameLayouts[$i]+"FrameLayout")`)
+		optionVar -iv ($frameLayouts[$i]+"FrameLayout") 1;
+
+if (`window -q -ex MoCapLibraryUI`)
+    deleteUI MoCapLibraryUI;
+window -t "MoCapLibrary" MoCapLibraryUI;
+
+columnLayout -adj 1;
+	text -l "Motion Capture Library:";
+	separator -h 10;
+	optionMenu -cc asSelChange asSelectorbipedOptionMenu;
+	separator -h 10;
+	frameLayout -mw 10 -cll 1 -cl `optionVar -q asMCLBodyFrameLayout` -cc asFL -ec asFL -l "Body" asMCLBodyFrameLayout;
+			rowLayout -nc 2;
+				optionMenu asMCLMoCapCustomOptionMenu;
+				button -l "apply" -c ("MCLApply \""+$uiName+"\""+"Custom");
+				setParent..;
+			setParent..;
+
+		separator -h 5;
+		frameLayout -cll 1 -cl `optionVar -q asMCLEditFrameLayout` -cc asFL -ec asFL -l " Edit" asMCLEditFrameLayout;
+			rowLayout -nc 3 -cw3 50 120 150;
+				text -l "Edit:";
+				button -w 110 -l "Go to Frame -1" -c "currentTime -1";
+				button -w 110 -l "Show MoCap joints" -c "setAttr MotionCaptureLibraryScale.v 1;select MotionCaptureLibraryScale;";
+				setParent..;
+			rowLayout -nc 3 -cw3 50 120 150;
+				separator;
+				button -w 110 -l "Disconnect" -c ("asMCLDisconnectBody \""+$uiName+"\"");
+				button -w 110 -l "Reconnect" -c ("asMCLConnectBody \""+$uiName+"\"");
+				setParent..;
+			rowLayout -nc 3 -cw3 50 120 150;
+				separator -w 50 -st none;
+				button -w 110 -l "Remove animation" -c ("asMCLRemoveBody \""+$uiName+"\"");
+				button -w 110 -l "Bake animation" -c ("asMCLBakeBody \""+$uiName+"\"");
+				setParent..;
+
+			setParent..;
+
+	separator -h 10;
+	button -l "Refresh" -c ("asPopulateNameSpaceMenu");
+	setParent..;
+
+	
+asPopulateNameSpaceMenu;
+getMocapFbxFils;
+
+showWindow MoCapLibraryUI;
+}
+
+
+MoCapLibraryUI("asSelectorbiped");
