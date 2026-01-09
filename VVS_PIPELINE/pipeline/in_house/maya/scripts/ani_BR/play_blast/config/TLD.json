@@ -1,0 +1,23 @@
+{
+	"topLeftText": "TLD",
+	"topCenterText": "python(\"os.path.basename(cmds.file(sn=1,q=1)).rsplit('_',1)[0]\")",
+	"topRightText":"L:/VVS_PIPELINE/vvs-dcc-plugins/nuke/images/default/vvs_logo_500.tga",
+	"bottomLeftText":"{scene}",
+	"bottomCenterText":"{counter}|{start_time}-{end_time}",
+	"topLeftCenterText":"",
+	"topRightCenterText":"",
+	"bottomLeftCenterText":"",
+	"bottomRightCenterText":"",
+	"bottomRightText":"{date}",
+	"fontName":"Courier",
+	"fontScale": 0.6,
+	"imageScale":0.3,
+	"fontAlpha":1.0,
+	"aspectRatioBorders":1,
+	"borderAspectRatio": 1.9,
+	"counterPadding": 4,
+	"borderAlpha":1.0,
+	"DEFAULT_CONTAINER": "mov"
+
+}
+	
