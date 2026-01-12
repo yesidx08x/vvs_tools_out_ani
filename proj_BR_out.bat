@@ -4,12 +4,13 @@
 set absolutePath=L:\VVS_PIPELINE\pipeline\in_house\maya
 set standalonePath=L:\VVS_PIPELINE\vvs-dcc-plugins\standalone
 set XBMLANGPATH=%standalonePath%/mayaDev/vvs_Shelf/icons;%absolutePath%/res/icons; 
-set PYTHONPATH=%PYTHONPATH%;%absolutePath%;%absolutePath%/scripts;
+set PYTHONPATH=%PYTHONPATH%;%absolutePath%;%absolutePath%/scripts;%absolutePath%/lib/2025/site-packages;
 set MAYA_SCRIPT_PATH=%absolutePath%/scripts;
 set MAYA_PATH=L:\VVS_PIPELINE\pipeline\in_house\maya
 set MAYA_MODULE_PATH=L:\VVS_PIPELINE\vvs-dcc-plugins\maya\default\submitters\Maya
 set MAYA_RENDER_SETUP_INCLUDE_ALL_LIGHTS = 0
 set MAYA_ENV_DIR=L:\VVS_PIPELINE\pipeline\in_house\maya\2025
+set MAYA_APP_DIR = %absolutePath%\2025\prefs
 set MAYA_SHELF_PATH=L:\VVS_PIPELINE\pipeline\in_house\maya\2025\prefs\shelves
 set project_name=DM
 set project_id=1036
