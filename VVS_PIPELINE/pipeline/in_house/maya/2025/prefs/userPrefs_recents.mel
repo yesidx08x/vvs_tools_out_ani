@@ -1,0 +1,32 @@
+//Maya Preference 2025 (Release 1)
+//
+//
+
+optionVar -version 3;
+
+// RecentFiles
+optionVar -cat "RecentFiles"
+ -sa "RecentFilesList"
+ -sva "RecentFilesList" "R:/1006_WYN_DJD/VFX/Assets/CGassets/Characters/JapMotorboatSoldier/Model/Work/DID_JapMotorboatSoldier_mod_lod999_v0001.ma"
+ -sva "RecentFilesList" "L:/VVS团队文档暂时存放处/外包规范文档/project/DJD/lookdev_DJD_temp_acescg_v001.mb"
+ -sva "RecentFilesList" "R:/1006_WYN_DJD/VFX/Assets/CGassets/Characters/JapSoldierWithBackpack/LookDev/Work/DJD_JapSoldier_withBackpack_ldv_lod200_v0001.ma"
+ -sva "RecentFilesList" "R:/1006_WYN_DJD/VFX/Assets/CGassets/Props/SampanBigLi/LookDev/Publish/PROP_SampanBigLi/maya/scenes/DJD_PROP_SampanBigLi_lookdev_v001.ma"
+ -sva "RecentFilesList" "R:/1006_WYN_DJD/VFX/Assets/CGassets/Props/SampanBigLi/LookDev/Publish/PROP_SampanBigLi/maya/scenes/DJD_PROP_SampanBigLi_lookdev_v002.ma"
+ -sva "RecentFilesList" "R:/1006_WYN_DJD/VFX/Assets/CGassets/Props/BoatSmallSail02/LookDev/Publish/PROP_BoatSmallSail02/maya/scenes/DJD_PROP_BoatSmallSail02_lookdev_v0004.ma"
+ -sva "RecentFilesList" "C:/Users/lixuesong/Desktop/sc0035_0530_lay_v0005.ma"
+ -sva "RecentFilesList" "C:/Users/lixuesong/Desktop/s0035_0550_ani_v0001.ma"
+ -sva "RecentFilesList" "R:/1036_DM/VFX/Assets/CGassets/Characters/HeiXing01/Shader/Work/HeiXing01_Shader_v0001.ma"
+ -sva "RecentFilesList" "R:/1036_DM/VFX/Assets/CGassets/Characters/HeiXing01/Shader/Work/test/HeiXing01_Shader_v0001_test.ma"
+ -sa "RecentFilesTypeList"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ -sva "RecentFilesTypeList" "mayaBinary"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ -sva "RecentFilesTypeList" "mayaAscii"
+ ;
+
