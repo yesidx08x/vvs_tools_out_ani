@@ -1,0 +1,33 @@
+//Maya Preference 2025 (Release 1)
+//
+//
+windowPref -topLeftCorner 225 150 -widthHeight 250 400 -maximized true -parentMain true outlinerPanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 700 400 -maximized true -parentMain true hyperGraphPanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 660 400 -maximized true -parentMain true graphEditor1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 1400 400 -maximized true -parentMain true timeEditorPanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 660 400 -maximized true -parentMain true dopeSheetPanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 1040 600 -maximized true -parentMain true nodeEditorPanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 660 400 -maximized true -parentMain true shapePanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 1040 600 -maximized true -parentMain true posePanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 660 400 -maximized true -parentMain true clipEditorPanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 524 470 -maximized true -parentMain true devicePanel1Window;
+windowPref -topLeftCorner 75 75 -widthHeight 1440 900 -maximized true -parentMain true hyperShadePanel1Window;
+windowPref -topLeftCorner 250 200 -widthHeight 700 400 -maximized true -parentMain true dynPaintScriptedPanelWindow;
+windowPref -topLeftCorner 250 200 -widthHeight 550 562 -maximized true -parentMain true blindDataEditor1Window;
+windowPref -topLeftCorner 150 200 -widthHeight 1120 640 -maximized true -parentMain true polyTexturePlacementPanel1Window;
+windowPref -topLeftCorner 235 230 -widthHeight 1000 495 -maximized true -parentMain true contentBrowserPanel1Window;
+windowPref -topLeftCorner 31 0 -widthHeight 1280 1024 -maximized true -parentMain false MayaWindow;
+windowPref -topLeftCorner 501 1598 -widthHeight 520 347 -maximized false -parentMain true AboutArnold;
+windowPref -topLeftCorner 497 853 -widthHeight 405 489 -maximized false -parentMain true Viewport20OptionsWindow;
+windowPref -topLeftCorner 497 853 -widthHeight 667 280 -maximized false -parentMain true PluginInfoWin;
+windowPref -topLeftCorner 581 1423 -widthHeight 884 643 -maximized false -parentMain true pluginManagerWindow;
+windowPref -topLeftCorner 497 853 -widthHeight 470 553 -maximized false -parentMain true shelfEditor;
+windowPref -topLeftCorner 497 853 -widthHeight 550 500 -maximized false -parentMain true projectWindow;
+windowPref -topLeftCorner 249 1021 -widthHeight 554 780 -maximized false -parentMain true DeadlineSubmitWindow;
+windowPref -topLeftCorner 446 951 -widthHeight 630 265 -maximized false -parentMain true WALKING_BEND_tool;
+windowPref -topLeftCorner 497 853 -widthHeight 350 125 -maximized false -parentMain true kz_About;
+windowPref -topLeftCorner 497 853 -widthHeight 572 675 -maximized false -parentMain true BodyArtCorrectiveToolsWin;
+windowPref -topLeftCorner 497 853 -widthHeight 510 612 -maximized false -parentMain true bodyArtModelTools_win;
+windowPref -topLeftCorner 497 853 -widthHeight 304 681 -maximized false -parentMain true kz_bodyRigPublish_win;
+windowPref -topLeftCorner 497 853 -widthHeight 971 203 -maximized false -parentMain true faceArtToolBar_win;
+windowPref -topLeftCorner 574 1031 -widthHeight 140 28 -maximized false -parentMain true gozwin;
