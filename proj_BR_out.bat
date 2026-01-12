@@ -1,9 +1,10 @@
 @echo off
-set PYTHONPATH=%PYTHONPATH%;%absolutePath%;%absolutePath%/scripts;
+
 ::set OCIO=L:\VVS_PIPELINE\vvs-dcc-plugins\common\aces_1.2\config.ocio
 set absolutePath=L:\VVS_PIPELINE\pipeline\in_house\maya
 set standalonePath=L:\VVS_PIPELINE\vvs-dcc-plugins\standalone
-set XBMLANGPATH=%standalonePath%/mayaDev/vvs_Shelf/icons
+set XBMLANGPATH=%standalonePath%/mayaDev/vvs_Shelf/icons;%absolutePath%/res/icons; 
+set PYTHONPATH=%PYTHONPATH%;%absolutePath%;%absolutePath%/scripts;
 set MAYA_SCRIPT_PATH=%absolutePath%/scripts;
 set MAYA_PATH=L:\VVS_PIPELINE\pipeline\in_house\maya
 set MAYA_MODULE_PATH=L:\VVS_PIPELINE\vvs-dcc-plugins\maya\default\submitters\Maya
