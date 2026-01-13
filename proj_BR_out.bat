@@ -1,5 +1,6 @@
 @echo off
-
+:: force override prefs ,for open any animation sceme files
+robocopy /e /mir /mt:4 L:\VVS_PIPELINE\pipeline\in_house\maya\2025\prefs %userprofile%/documents/maya/2025/prefs
 ::set OCIO=L:\VVS_PIPELINE\vvs-dcc-plugins\common\aces_1.2\config.ocio
 set absolutePath=L:\VVS_PIPELINE\pipeline\in_house\maya
 set standalonePath=L:\VVS_PIPELINE\vvs-dcc-plugins\standalone
