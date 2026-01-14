@@ -2,7 +2,7 @@
 :: force override prefs ,for open any animation sceme files
 set %prefs%=%userprofile%/documents/maya/2025/prefs/hotkeys
 robocopy /e /mir /mt:4 L:\VVS_PIPELINE\pipeline\in_house\maya\2025\prefs %prefs% /xd %prefs%/hotkeys /xd %prefs%/scriptEditorTemp /xd %prefs%/scripts /xd %prefs%/shelves /xd %prefs%/icons /xd %prefs%/site-packages
-::set OCIO=L:\VVS_PIPELINE\vvs-dcc-plugins\common\aces_1.2\config.ocio
+set OCIO=L:\VVS_PIPELINE\vvs-dcc-plugins\common\aces_1.2\config.ocio
 set absolutePath=L:\VVS_PIPELINE\pipeline\in_house\maya
 set standalonePath=L:\VVS_PIPELINE\vvs-dcc-plugins\standalone
 set XBMLANGPATH=%standalonePath%/mayaDev/vvs_Shelf/icons;%absolutePath%/res/icons; 
@@ -11,7 +11,7 @@ set MAYA_SCRIPT_PATH=%absolutePath%/scripts;
 set MAYA_PATH=L:\VVS_PIPELINE\pipeline\in_house\maya
 set MAYA_MODULE_PATH=L:\VVS_PIPELINE\vvs-dcc-plugins\maya\default\submitters\Maya
 set MAYA_RENDER_SETUP_INCLUDE_ALL_LIGHTS = 0
-set MAYA_ENV_DIR=L:\VVS_PIPELINE\pipeline\in_house\maya\2025
+set MAYA_ENV_DIR=%absolutePath%\2025
 set MAYA_APP_DIR = %absolutePath%\2025\prefs
 set MAYA_SHELF_PATH=L:\VVS_PIPELINE\pipeline\in_house\maya\2025\prefs\shelves
 set MAYA_DISABLE_CLIP=1
