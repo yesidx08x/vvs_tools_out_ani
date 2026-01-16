@@ -16,6 +16,7 @@ set MAYA_APP_DIR = %absolutePath%\2025\prefs
 set MAYA_SHELF_PATH=L:\VVS_PIPELINE\pipeline\in_house\maya\2025\prefs\shelves
 set MAYA_DISABLE_CLIP=1
 set MAYA_DISABLE_CLIC_IPM=1
+set DWPICKER_PROJECT_DIRECTORY = L:/VVS_PIPELINE/vvs-dcc-plugins/standalone/dwpicker/pickers
 set project_name=DM
 set project_id=1036
 set fps=24
