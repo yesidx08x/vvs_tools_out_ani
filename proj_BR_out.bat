@@ -1,7 +1,7 @@
 @echo off
 :: force override prefs ,for open any animation sceme files
 set prefs=%userprofile%/documents/maya/2025/prefs
-robocopy /e /mir /mt:4 L:\VVS_PIPELINE\pipeline\in_house\maya\2025\prefs %prefs% /xd %prefs%/hotkeys /xd %prefs%/scriptEditorTemp /xd %prefs%/scripts /xd %prefs%/shelves /xd %prefs%/icons /xd %prefs%/site-packages
+robocopy /e /mir /mt:4 L:\VVS_PIPELINE\pipeline\in_house\maya\2025\prefs %prefs% /xd %prefs%/hotkeys /xd %prefs%/scriptEditorTemp /xd %prefs%/scripts /xd %prefs%/shelves /xd %prefs%/icons /xd %prefs%/site-packages /xf userPrefs_recents.mel /xf userRunTimeCommands.mel /xf userHotkeys.mel /xf userNamedCommands.mel
 set OCIO=L:\VVS_PIPELINE\vvs-dcc-plugins\common\aces_1.2\config.ocio
 set absolutePath=L:\VVS_PIPELINE\pipeline\in_house\maya
 set standalonePath=L:\VVS_PIPELINE\vvs-dcc-plugins\standalone
