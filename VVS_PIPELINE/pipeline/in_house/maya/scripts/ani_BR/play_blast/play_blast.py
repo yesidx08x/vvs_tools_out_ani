@@ -26,7 +26,8 @@ import maya.api.OpenMaya as om
 import maya.OpenMayaUI as omui
 
 from .play_blast_presets import PlayblastCustomPresets, PlayBlastCustomPresets
-
+#20260225 animation mode=DG
+cmds.evaluationManager(mode="off")
 
 def module_exists(module_name):
     if sys.version_info.major == 3:
